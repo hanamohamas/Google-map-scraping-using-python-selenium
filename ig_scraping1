@@ -1,0 +1,267 @@
+import mysql.connector
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import time
+from selenium.webdriver.chrome.service import Service
+import pandas as pd
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from datetime import datetime
+import re
+from selenium.common.exceptions import NoSuchElementException
+from mysql.connector import Error
+
+
+def remove_emojis(text):
+    return text.encode('ascii', 'ignore').decode('ascii')
+def contains_arabic(text):
+    arabic_pattern = re.compile("[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB70-\uFB9F\uFE70-\uFEFF]", flags=re.UNICODE)
+    return bool(arabic_pattern.search(text))
+def get_first_line(text):
+    if not text.strip():
+        return None
+    lines = text.split('\n')
+    return lines[0] if lines else None
+
+
+
+
+
+host='sql12.freesqldatabase.com'
+user='sql12727222'
+password='T717rUDItZ'
+database='sql12727222'
+connection = mysql.connector.connect(
+    host=host,
+    user=user,
+    password=password,
+    database=database
+)
+cursor = connection.cursor()
+query = "SELECT instagram FROM mapData WHERE instagram LIKE 'https://www.instagram.com/%'"
+cursor.execute(query)
+instagram_links = cursor.fetchall()
+cursor.close()
+connection.close()
+
+base_urls = []
+for link in instagram_links:
+    instagram_url = link[0]
+    base_instagram_url = "/".join(instagram_url.split('/')[:4])
+    base_urls.append(base_instagram_url)
+chrome_driver_path = "chromedriver.exe"
+options = Options()
+service = Service(executable_path=chrome_driver_path)
+driver = webdriver.Chrome(service=service, options=options)
+driver.get('https://www.instagram.com/accounts/login/')
+
+WebDriverWait(driver, 10).until(
+    EC.presence_of_element_located((By.NAME, "username"))
+)
+
+username = driver.find_element(By.NAME, "username")
+password = driver.find_element(By.NAME, "password")
+
+username.send_keys("hanaalmohamad02024")  
+password.send_keys("jisoo333@@@")  
+
+login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+login_button.click()
+
+try:
+    save_info_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Save Info')]"))
+    )
+    save_info_button.click()
+except Exception as e:
+    print("No 'Save Your Login Info?' popup.")
+try:
+    not_now_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Not Now')]"))
+    )
+    not_now_button.click()
+except Exception as e:
+    print("No 'Turn on Notifications' popup.")
+time.sleep(5)  
+driver.get('https://www.instagram.com/your_profile/')  
+
+instagram_data = []
+profile_data=[]
+for base_url in base_urls:
+    driver.get(base_url)
+    time.sleep(5)
+    
+    try:
+        profile_name = driver.find_element(By.CLASS_NAME, 'x1lliihq.x1plvlek.xryxfnj.x1n2onr6.x193iq5w.xeuugli.x1fj9vlw.x13faqbe.x1vvkbs.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.x1i0vuye.x1ms8i2q.xo1l8bm.x5n08af.x10wh9bi.x1wdrske.x8viiok.x18hxmgj').text
+        user_name = driver.find_element(By.CSS_SELECTOR, 'span.x1lliihq.x1plvlek.xryxfnj.x1n2onr6.x193iq5w.xeuugli.x1fj9vlw.x13faqbe.x1vvkbs.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.x1i0vuye.xvs91rp.x1s688f.x5n08af.x10wh9bi.x1wdrske.x8viiok.x18hxmgj').text
+        profile_images=driver.find_elements(By.CSS_SELECTOR, 'img.xpdipgo.x972fbf.xcfux6l.x1qhh985.xm0m39n.xk390pu.x5yr21d.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xl1xv1r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x11njtxf.xh8yej3')
+        if profile_images:
+            profile_image_url=profile_images[0].get_attribute('src')
+
+        try:
+            bio=None
+            bio=driver.find_element(By.CSS_SELECTOR, 'span._ap3a._aaco._aacu._aacx._aad7._aade').text
+        except NoSuchElementException:
+            print("Bio element not found. Setting bio to None.")
+        if bio:
+            bio_text = remove_emojis(bio)
+            if bio_text.strip()=='':
+                bio_text=None
+            elif contains_arabic(bio_text):
+                bio_text = None
+        else:
+            bio_text=None
+        first_line_bio = get_first_line(bio_text) if bio_text else None
+
+        about=None
+        try:
+            about = driver.find_element(By.CSS_SELECTOR, 'div._ap3a._aaco._aacu._aacy._aad6._aade').text
+        except Exception:
+            pass
+        address=None
+        try:
+            address = driver.find_element(By.CSS_SELECTOR, 'h1._ap3a._aaco._aacu._aacy._aad6._aade').text
+        except Exception:
+            pass
+            
+        try:
+            websites=driver.find_elements(By.CSS_SELECTOR, 'span.x1lliihq.x193iq5w.x6ikm8r.x10wlt62.xlyipyv.xuxw1ft')
+            if len(websites) > 1:
+                link = websites[1].text 
+            else:
+                link=None
+            print(link)
+        except Exception as e:
+            link = None
+            print(f"An error occurred: {e}") 
+    
+        try:
+            reels_tab = driver.find_element(By.XPATH,  "//a[contains(@href, '/reels/') and @role='tab']")
+            reels_present = True
+        except Exception:
+            reels_present = False
+        counts = driver.find_elements(By.CSS_SELECTOR, 'span.html-span.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x1hl2dhg.x16tdsg8.x1vvkbs')
+        if counts:
+            posts_count = counts[0].text
+            followers_count = counts[1].text
+            following_count = counts[2].text
+        else:
+            posts_count = None
+            followers_count = None
+            following_count = None
+        
+        posts = driver.find_elements(By.CSS_SELECTOR, 'a.x1i10hfl.xjbqb8w.x1ejq31n.xd10rxx.x1sy0etr.x17r0tee.x972fbf.xcfux6l.x1qhh985.xm0m39n.x9f619.x1ypdohk.xt0psk2.xe8uvvx.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x16tdsg8.x1hl2dhg.xggy1nq.x1a2a7pz')
+        if "nas.code" in driver.current_url:
+            relevant_post_indices = [16, 17, 18]
+        elif reels_present:
+            relevant_post_indices = [5, 6, 7]
+        else:
+            relevant_post_indices = [4, 5, 6]
+        latest_posts_data = []
+        posts_data=[]
+
+        for post_index in relevant_post_indices:
+            if post_index < len(posts):
+             try:
+                recent_post = posts[post_index]
+                recent_post.click()
+        
+                time.sleep(10)
+                post_date_element=driver.find_element(By.CSS_SELECTOR, 'time.x1p4m5qa')
+                post_date_text = post_date_element.get_attribute('datetime')
+                post_date = datetime.strptime(post_date_text, "%Y-%m-%dT%H:%M:%S.%fZ")
+                latest_posts_data.append(post_date)
+
+                try:
+                    caption=None
+                    caption_element = driver.find_element(By.CSS_SELECTOR, 'h1._ap3a._aaco._aacu._aacx._aad7._aade')
+                    caption=caption_element.text
+                    links = caption_element.find_elements(By.CSS_SELECTOR, 'a')
+
+    
+                    for link in links:
+                        caption = caption.replace(link.text, '')
+
+    
+                    caption = caption.strip()
+                except NoSuchElementException:
+                    print("caption not found")
+                if caption:
+                    caption=remove_emojis(caption)
+                    if caption.strip()=='':
+                        caption=None
+                    elif contains_arabic(caption):
+                        caption=None
+                else:
+                    caption=None
+                try:
+                    hashtags_elements=driver.find_elements(By.CSS_SELECTOR, 'a.x1i10hfl.xjbqb8w.x1ejq31n.xd10rxx.x1sy0etr.x17r0tee.x972fbf.xcfux6l.x1qhh985.xm0m39n.x9f619.x1ypdohk.xt0psk2.xe8uvvx.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x16tdsg8.x1hl2dhg.xggy1nq.x1a2a7pz._aa9_._a6hd')
+                    hashtags = [tag.text for tag in hashtags_elements if not contains_arabic(tag.text)]
+
+                except NoSuchElementException as e:
+                    print(f"Element not found: {e}")
+                likes=driver.find_elements(By.CSS_SELECTOR, 'span.html-span.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x1hl2dhg.x16tdsg8.x1vvkbs')
+                if likes:
+                    like_count=likes[3].text
+                else:
+                    like_count=None  
+
+                
+                href = recent_post.get_attribute('href')
+                if '/reel/' in href:
+                    post_type = 'Reel'
+                else:
+                    post_type = 'Image'
+                
+                
+                posts_data.append({
+                    "post_date": post_date,
+                    "like_count": like_count,
+                    
+                    "caption": caption,
+                    "hashtags ": hashtags,
+                    "post_type": post_type,
+                    "href": href
+                })
+                
+                driver.back()
+                time.sleep(5)
+                posts = driver.find_elements(By.CSS_SELECTOR, 'a.x1i10hfl.xjbqb8w.x1ejq31n.xd10rxx.x1sy0etr.x17r0tee.x972fbf.xcfux6l.x1qhh985.xm0m39n.x9f619.x1ypdohk.xt0psk2.xe8uvvx.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x16tdsg8.x1hl2dhg.xggy1nq.x1a2a7pz')
+        
+             except Exception as e:
+                print(f"Error while accessing post index {post_index}: {e}")
+            else:
+                print(f"Not enough posts found for index {post_index}.")
+        if len(latest_posts_data) >= 2:
+            days_between_posts = [(latest_posts_data[i] - latest_posts_data[i + 1]).days for i in range(len(latest_posts_data) - 1)]
+            posting_frequency = abs(sum(days_between_posts) / len(days_between_posts))
+        else:
+            posting_frequency = None
+        profile_data = {
+            "profile_name": profile_name,
+            "url": base_url,
+            "username": user_name,
+            "profile image url": profile_image_url,
+            "bio": first_line_bio if first_line_bio else None,
+            "about": about,
+            "address": address,
+            "link/website/thread": link,
+            "number_of_posts": posts_count,
+            "number_of_followers": followers_count,
+            "number_of_following": following_count,
+            "posts(posting date, caption, likes count, post type, post URL)": posts_data,
+            "posting_frequency": posting_frequency
+        }
+        instagram_data.append(profile_data)
+    except Exception as e: 
+        print(f"Error scraping {base_url}: {e}")
+    
+try:
+    df=pd.DataFrame(instagram_data)
+    df.to_csv("instagram_data.csv", index=False, encoding='utf-8')
+    print("csv file created successfully")
+except Exception as e:
+    print("Error saving CSV file: ", e)
+
